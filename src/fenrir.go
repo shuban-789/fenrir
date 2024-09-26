@@ -5,62 +5,111 @@ import (
 	"os"
 	"crypto/sha256"
 	"strings"
+	"io"
 )
 
 func checksum(filePath string) string {
 	file, err := os.Open(filePath)
-    if err != nil {
-        fmt.Println("ERROR OPENING FILE (%s): %s", file, err)
-    }
-    defer file.Close()
+	if err != nil {
+		fmt.Printf("ERROR OPENING FILE (%s): %s\n", filePath, err)
+		return ""
+	}
+	defer file.Close()
 
 	hash := sha256.New()
-  	if _, err := io.Copy(hash, file); err != nil {
-    	fmt.Println("ERROR WITH HASH GENERATION (%s): %s", file, err)
-  	}
+	if _, err := io.Copy(hash, file); err != nil {
+		fmt.Printf("ERROR WITH HASH GENERATION (%s): %s\n", filePath, err)
+		return ""
+	}
 
-	return hash.Sum(nil)
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-// O(log(n)) Complexity
+// O(log(n)) Complexity binary search-based verification
 func binary_search_verification(base string, target string) {
 	basefiles, err := os.ReadDir(base)
 	if err != nil {
-		fmt.Println("ERROR READING DIRECTORY (%s): %s", base, err)
+		fmt.Printf("ERROR READING DIRECTORY (%s): %s\n", base, err)
+		return
 	}
 
 	targetfiles, err := os.ReadDir(target)
 	if err != nil {
-		fmt.Println("ERROR READING DIRECTORY (%s): %s", target, err)
+		fmt.Printf("ERROR READING DIRECTORY (%s): %s\n", target, err)
+		return
 	}
 
-	for _, entry := range entries {
-		current_checksum := checksum(entry.Name())
-		low, high := 0, len(targetfiles)-1
+	targetFilenames := make([]string, len(targetfiles))
+	for i, f := range targetfiles {
+		targetFilenames[i] = f.Name()
+	}
+
+	for _, entry := range basefiles {
+		currentFileName := entry.Name()
+		currentChecksum := checksum(base + "/" + currentFileName)
+		low, high := 0, len(targetFilenames)-1
+		found := false
+
 		for low <= high {
 			mid := low + (high-low)/2
-			if targetfiles[mid] == entry.Name() {
-				target_checksum := checksum(targetfiles[mid])
-				if strings.Compare(current_checksum, targetfiles[mid]) == 0 {
-					fmt.Println("[OK] (%s) (%s)", entry.Name(), targetfiles[mid])
+			compareResult := strings.Compare(targetFilenames[mid], currentFileName)
+			if compareResult == 0 {
+				targetChecksum := checksum(target + "/" + targetFilenames[mid])
+				if currentChecksum == targetChecksum {
+					fmt.Printf("[OK] File matched: %s\n", currentFileName)
 				} else {
-					fmt.Println("[ALERT] (%s) (%s)", entry.Name(), targetfiles[mid])
+					fmt.Printf("[ALERT] Checksum mismatch: %s\n", currentFileName)
 				}
-			} else if arr[mid] < target {
+				found = true
+				break
+			} else if compareResult < 0 {
 				low = mid + 1
 			} else {
 				high = mid - 1
 			}
 		}
 
-		// Fallback for if file exists on baseline but not target
+		if !found {
+			fmt.Printf("[ALERT] File exists in base but not in target: %s\n", currentFileName)
+		}
+	}
+
+	baseFilenames := make([]string, len(basefiles))
+	for i, f := range basefiles {
+		baseFilenames[i] = f.Name()
+	}
+
+	for _, targetFile := range targetfiles {
+		targetFileName := targetFile.Name()
+		low, high := 0, len(baseFilenames)-1
+		found := false
+
+		for low <= high {
+			mid := low + (high-low)/2
+			compareResult := strings.Compare(baseFilenames[mid], targetFileName)
+			if compareResult == 0 {
+				found = true
+				break
+			} else if compareResult < 0 {
+				low = mid + 1
+			} else {
+				high = mid - 1
+			}
+		}
+
+		if !found {
+			fmt.Printf("[ALERT] File exists in target but not in base: %s\n", targetFileName)
+		}
 	}
 }
 
 func help() {
-	fmt.Println("In progress")
+	fmt.Println("Usage instructions in progress")
 }
 
 func main() {
-	fmt.Println("In progress")
+	base := "./base_dir"
+	target := "./target_dir"
+
+	binary_search_verification(base, target)
 }
