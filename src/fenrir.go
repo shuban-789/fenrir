@@ -56,7 +56,7 @@ func binary_search_verification(base string, target string) {
 			if compareResult == 0 {
 				targetChecksum := checksum(target + "/" + targetFilenames[mid])
 				if currentChecksum == targetChecksum {
-					fmt.Printf("[OK] File matched: %s\n", currentFileName)
+					fmt.Printf("\033[32m[OK]\033[0m File matched: %s\n", currentFileName)
 				} else {
 					fmt.Printf("[ALERT] Checksum mismatch: %s\n", currentFileName)
 				}
