@@ -25,7 +25,9 @@ func checksum(filePath string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-// O(log(n)) Complexity binary search-based verification
+///////////////////////////////////////////////////////////
+// O(log(n)) Complexity binary search-based verification //
+///////////////////////////////////////////////////////////
 func binary_search_verification(base string, target string) {
 	basefiles, err := os.ReadDir(base)
 	if err != nil {
