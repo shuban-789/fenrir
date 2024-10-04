@@ -120,8 +120,8 @@ func help() {
 }
 
 func main() {
-	base := "./base_dir"
-	target := "./target_dir"
+	base := "./simulation/base_dir"
+	target := "./simulation/target_dir"
 
 	binary_search_verification(base, target)
 }
