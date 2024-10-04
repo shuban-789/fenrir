@@ -108,7 +108,7 @@ func binary_search_verification(base string, target string) {
 func help() {
 	// Logo
 	fmt.Println("=================================")
-	fmt.Println("  ______                _    ")
+	fmt.Println("    ______                _    ")
 	fmt.Println("   / ____/__  ____  _____(_)____ ")
 	fmt.Println("  / /_  / _ \/ __ \/ ___/ / ___/ ")
 	fmt.Println(" / __/ /  __/ / / / /  / / /   ")
