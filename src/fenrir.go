@@ -8,6 +8,9 @@ import (
 	"io"
 )
 
+//////////////////////////////////////////////////////
+// SHA-256 checksum verification function for files //
+//////////////////////////////////////////////////////
 func checksum(filePath string) string {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -105,6 +108,9 @@ func binary_search_verification(base string, target string) {
 	}
 }
 
+/////////////////////////
+// Help and usage menu //
+/////////////////////////
 func help() {
 	// Usage
 	fmt.Printf("Usage: ./fenrir [OPTION1] [ARGUMENT1] ... [OPTIONn] [ARGUMENTn]\n")
@@ -119,6 +125,9 @@ func help() {
 	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir\n")
 }
 
+//////////////////////////////////////
+// Main function and argument logic //
+//////////////////////////////////////
 func main() {
 	base := "./simulation/base_dir"
 	target := "./simulation/target_dir"
