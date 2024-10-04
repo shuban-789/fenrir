@@ -58,7 +58,7 @@ func binary_search_verification(base string, target string) {
 				if currentChecksum == targetChecksum {
 					fmt.Printf("\033[32m[OK]\033[0m File matched: %s\n", currentFileName)
 				} else {
-					fmt.Printf("[ALERT] Checksum mismatch: %s\n", currentFileName)
+					fmt.Printf("\033[31m[ALERT]\033[0m Checksum mismatch: %s\n", currentFileName)
 				}
 				found = true
 				break
@@ -70,7 +70,7 @@ func binary_search_verification(base string, target string) {
 		}
 
 		if !found {
-			fmt.Printf("[ALERT] File exists in base but not in target: %s\n", currentFileName)
+			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target: %s\n", currentFileName)
 		}
 	}
 
