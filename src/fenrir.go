@@ -98,7 +98,7 @@ func binary_search_verification(base string, target string) {
 		}
 
 		if !found {
-			fmt.Printf("[ALERT] File exists in target but not in base: %s\n", targetFileName)
+			fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: %s\n", targetFileName)
 		}
 	}
 }
