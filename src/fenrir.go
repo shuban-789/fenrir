@@ -106,16 +106,6 @@ func binary_search_verification(base string, target string) {
 }
 
 func help() {
-	// Logo
-	fmt.Println("=================================")
-	fmt.Println("	 ______                _    ")
-	fmt.Println("   / ____/__  ____  _____(_)____ ")
-	fmt.Println("  / /_  / _ \/ __ \/ ___/ / ___/ ")
-	fmt.Println(" / __/ /  __/ / / / /  / / /   ")
-	fmt.Println("/_/    \___/_/ /_/_/  /_/_/  ")      
-	fmt.Println("=================================")
-	fmt.Println()
-
 	// Usage
 	fmt.Printf("Usage: ./fenrir [OPTION1] [ARGUMENT1] ... [OPTIONn] [ARGUMENTn]\n")
 	fmt.Printf("\nOptions:\n")
