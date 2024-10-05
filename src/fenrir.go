@@ -115,8 +115,8 @@ func help() {
 	// Usage
 	fmt.Printf("Usage: ./fenrir [OPTION1] [ARGUMENT1] ... [OPTIONn] [ARGUMENTn]\n")
 	fmt.Printf("\nOptions:\n")
-	fmt.Printf("	-b, Declares base file (REQUIRES TARGET)\n")
-	fmt.Printf("	-t, Declares target file (REQUIRES BASE)\n")
+	fmt.Printf("	-b, Declares base directory (REQUIRES TARGET)\n")
+	fmt.Printf("	-t, Declares target directory (REQUIRES BASE)\n")
 	fmt.Printf("	-h, Shows usage menu\n")
 	fmt.Printf("\nFormat:\n")
 	fmt.Printf("	./fenrir -h\n")
