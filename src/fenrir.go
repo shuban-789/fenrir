@@ -14,14 +14,14 @@ import (
 func checksum(filePath string) string {
 	file, err := os.Open(filePath)
 	if err != nil {
-		fmt.Printf("ERROR OPENING FILE (%s): %s\n", filePath, err)
+		fmt.Printf("ERROR OPENING FILE (\033[0;36m%s\033[0m): %s\n", filePath, err)
 		return ""
 	}
 	defer file.Close()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
-		fmt.Printf("ERROR WITH HASH GENERATION (%s): %s\n", filePath, err)
+		fmt.Printf("ERROR WITH HASH GENERATION (\033[0;36m%s\033[0m): %s\n", filePath, err)
 		return ""
 	}
 
@@ -61,9 +61,9 @@ func binary_search_verification(base string, target string) {
 			if compareResult == 0 {
 				targetChecksum := checksum(target + "/" + targetFilenames[mid])
 				if currentChecksum == targetChecksum {
-					fmt.Printf("\033[32m[OK]\033[0m File matched (%s/%s --> %s/%s)\n", base, currentFileName, target, targetFilenames[mid])
+					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, currentFileName, target, targetFilenames[mid])
 				} else {
-					fmt.Printf("\033[31m[ALERT]\033[0m Checksum mismatch (%s/%s)\n", base, currentFileName)
+					fmt.Printf("\033[31m[ALERT]\033[0m Checksum mismatch (\033[0;36m%s/%s\033[0m)\n", base, currentFileName)
 				}
 				found = true
 				break
@@ -75,7 +75,7 @@ func binary_search_verification(base string, target string) {
 		}
 
 		if !found {
-			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target: (%s/%s)\n", base, currentFileName)
+			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target: (\033[0;36m%s/%s\033[0m)\n", base, currentFileName)
 		}
 	}
 
@@ -103,7 +103,7 @@ func binary_search_verification(base string, target string) {
 		}
 
 		if !found {
-			fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (%s/%s)\n", target, targetFileName)
+			fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, targetFileName)
 		}
 	}
 }
