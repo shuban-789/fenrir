@@ -129,8 +129,27 @@ func help() {
 // Main function and argument logic //
 //////////////////////////////////////
 func main() {
-	base := "./simulation/base_dir"
-	target := "./simulation/target_dir"
-
-	binary_search_verification(base, target)
+	if len(os.Args) > 1 {
+		if strings.Compare(os.Args[1], "-b") == 0 {
+			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-t") == 0 {
+				base := os.Args[2]
+				target := os.Args[4]
+				binary_search_verification(base, target)
+			} else {
+				help()
+			}
+		} else if strings.Compare(os.Args[1], "-t") == 0 {
+			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-b") == 0 {
+				target := os.Args[2]
+				base := os.Args[4]
+				binary_search_verification(base, target)
+			} else {
+				help()
+			}
+		} else {
+			help()
+		}
+	} else {
+		help()
+	}
 }
