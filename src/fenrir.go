@@ -75,7 +75,7 @@ func binary_search_verification(base string, target string) {
 					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, currentFileName, target, targetFilenames[mid])
 				} else {
 					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, targetFilenames[mid])
-					var conflicts_log = target + "/" + targetFilenames[mid]
+					var conflicts_log = target + "/" + targetFilenames[mid] + "\n"
 					log_check(conflicts_log, "conflicts.log")
 				}
 				found = true
@@ -89,7 +89,7 @@ func binary_search_verification(base string, target string) {
 
 		if !found {
 			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target: (\033[0;36m%s/%s\033[0m)\n", base, currentFileName)
-			var base_specific_log = base + "/" + currentFileName
+			var base_specific_log = base + "/" + currentFileName + "\n"
 			log_check(base_specific_log, "base_specific.log")
 		}
 	}
@@ -124,7 +124,7 @@ func binary_search_verification(base string, target string) {
 
 		if !found {
 			fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, targetFileName)
-			var target_specific_log = target + "/" + targetFileName
+			var target_specific_log = target + "/" + targetFileName + "\n"
 			log_check(target_specific_log, "target_specific.log")
 		}
 	}
