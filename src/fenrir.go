@@ -154,7 +154,7 @@ func main() {
 				target := os.Args[4]
 				conflict_log, conflict_log_err := os.Create("conflicts.log")
 				if conflict_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", conflict_log_errerr)
+					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", conflict_log_err)
 					return
 				}
 				defer conflict_log.Close()
