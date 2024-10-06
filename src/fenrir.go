@@ -154,19 +154,19 @@ func main() {
 				target := os.Args[4]
 				conflict_log, conflict_log_err := os.Create("conflicts.log")
 				if conflict_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", err)
+					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", conflict_log_errerr)
 					return
 				}
 				defer conflict_log.Close()
 				base_specific, base_specific_log_err := os.Create("base_specific.log")
 				if base_specific_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mbase_specific.log\033[0m): %s\n", err)
+					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mbase_specific.log\033[0m): %s\n", base_specific_log_err)
 					return
 				}
 				defer base_specific.Close()
 				target_specific, target_specific_log_err := os.Create("target_specific.log")
 				if target_specific_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mtarget_specific.log\033[0m): %s\n", err)
+					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mtarget_specific.log\033[0m): %s\n", target_specific_log_err)
 					return
 				}
 				defer target_specific.Close()
