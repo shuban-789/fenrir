@@ -14,3 +14,9 @@ run:
 clean:
 	@echo "Removing ./fenrir..."
 	rm -f fenrir
+	@echo "Removing conflicts.log..."
+	rm -f conflicts.log
+	@echo "Removing base_specific.log..."
+	rm -f base_specific.log
+	@echo "Removing target_specific.log..."
+	rm -f target_specific.log
