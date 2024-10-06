@@ -1,5 +1,7 @@
 ARCH=amd64
 OS=linux
+BASE=./simulation/base_dir
+TARGET=./simulation/target_dir
 
 all: build
 
@@ -9,7 +11,7 @@ build:
 
 run:
 	@echo "Running src/fenrir.go..."
-	go run src/fenrir.go
+	go run src/fenrir.go -b $(BASE) -t $(TARGET)
 
 clean:
 	@echo "Removing ./fenrir..."
