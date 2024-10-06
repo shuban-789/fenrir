@@ -44,12 +44,18 @@ func binary_search_verification(base string, target string) {
 		return
 	}
 
-	targetFilenames := make([]string, len(targetfiles))
-	for i, f := range targetfiles {
-		targetFilenames[i] = f.Name()
+	targetFilenames := make([]string, 0)
+	for _, f := range targetfiles {
+		if !f.IsDir() {
+			targetFilenames = append(targetFilenames, f.Name())
+		}
 	}
 
 	for _, entry := range basefiles {
+		if entry.IsDir() {
+			continue
+		}
+
 		currentFileName := entry.Name()
 		currentChecksum := checksum(base + "/" + currentFileName)
 		low, high := 0, len(targetFilenames)-1
@@ -79,12 +85,17 @@ func binary_search_verification(base string, target string) {
 		}
 	}
 
-	baseFilenames := make([]string, len(basefiles))
-	for i, f := range basefiles {
-		baseFilenames[i] = f.Name()
+	baseFilenames := make([]string, 0)
+	for _, f := range basefiles {
+		if !f.IsDir() {
+			baseFilenames = append(baseFilenames, f.Name())
+		}
 	}
 
 	for _, targetFile := range targetfiles {
+		if targetFile.IsDir() {
+			continue
+		}
 		targetFileName := targetFile.Name()
 		low, high := 0, len(baseFilenames)-1
 		found := false
