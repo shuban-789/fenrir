@@ -151,14 +151,14 @@ func main() {
 					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", err)
 					return
 				}
-				added_log, added_log_err := os.Create("added_files.log")
-				if added_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36madded_files.log\033[0m): %s\n", err)
+				base_specific, base_specific_log_err := os.Create("base_specific.log")
+				if base_specific_log_err != nil {
+					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mbase_specific.log\033[0m): %s\n", err)
 					return
 				}
-				removed_log, removed_log_err := os.Create("removed_files.log")
-				if added_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mremoved_files.log\033[0m): %s\n", err)
+				target_specific, target_specific_log_err := os.Create("target_specific.log")
+				if target_specific_log_err != nil {
+					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mtarget_specific.log\033[0m): %s\n", err)
 					return
 				}
 				binary_search_verification(base, target)
