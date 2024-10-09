@@ -4,4 +4,4 @@ Fenrir is a high-performance filesystem integrity verification tool that utilize
 
 ## Demo
 
-![demoimage](assets/demo.png)
+![demoimage](assets/image.png)
