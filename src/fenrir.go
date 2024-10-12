@@ -132,7 +132,6 @@ func binary_search_verification(base string, target string) {
 
 // Help and usage menu
 func help() {
-	// Usage
 	fmt.Printf("Usage: ./fenrir [OPTION1] [ARGUMENT1] ... [OPTIONn] [ARGUMENTn]\n")
 	fmt.Printf("\nOptions:\n")
 	fmt.Printf("	-b, Declares base directory (REQUIRES TARGET)\n")
@@ -143,6 +142,19 @@ func help() {
 	fmt.Printf("	./fenrir -b <BASE> -t <TARGET>\n")
 	fmt.Printf("\nExamples:\n")
 	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir\n")
+}
+
+func clean() {
+	const logs = [3]string{
+		"conflicts.log",
+		"base_specific.log",
+		"target_specific.log"
+	}
+	for (i := 0; i < len(logs); i++) {
+		if _, err := os.Stat(logs[i]); err == nil {
+			os.Remove(logs[i])
+		}
+	}
 }
 
 // Main function and argument logic
