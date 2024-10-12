@@ -136,21 +136,25 @@ func help() {
 	fmt.Printf("\nOptions:\n")
 	fmt.Printf("	-b, Declares base directory (REQUIRES TARGET)\n")
 	fmt.Printf("	-t, Declares target directory (REQUIRES BASE)\n")
+	fmt.Printf("	-c, Clears all log files\n")
 	fmt.Printf("	-h, Shows usage menu\n")
 	fmt.Printf("\nFormat:\n")
 	fmt.Printf("	./fenrir -h\n")
 	fmt.Printf("	./fenrir -b <BASE> -t <TARGET>\n")
+	fmt.Printf("	./fenrir -t <TARGET> -b <BASE>\n")
+	fmt.Printf("	./fenrir -c\n")
 	fmt.Printf("\nExamples:\n")
 	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir\n")
 }
 
 func clean() {
-	const logs = [3]string{
+	var logs = []string{
 		"conflicts.log",
 		"base_specific.log",
-		"target_specific.log"
+		"target_specific.log",
 	}
-	for (i := 0; i < len(logs); i++) {
+
+	for i := 0; i < len(logs); i++ {
 		if _, err := os.Stat(logs[i]); err == nil {
 			os.Remove(logs[i])
 		}
@@ -194,6 +198,8 @@ func main() {
 			} else {
 				help()
 			}
+		} else if strings.Compare(os.Args[1], "-c") == 0 {
+			clean()
 		} else {
 			help()
 		}
