@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"strings"
 	"io"
+	"path/filepath"
 )
 
 // SHA-256 checksum verification function for files
@@ -26,106 +27,81 @@ func checksum(filePath string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func log_check(content string, logfile string) {
-	byte_content := []byte(content)
-    err := os.WriteFile(logfile, byte_content, 0777)
-    if err != nil {
-        fmt.Printf("\033[31m[FAIL]\033[0m Error appending content to logfile (\033[0;36m%s\033[0m): %s\n", logfile, err)
-		return
-    }
+func appendLog(filename string, text string) error {
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if _, err := file.WriteString(text); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// O(log(n)) Complexity binary search-based verification
+func log_check(content string, logfile string) {
+	err := appendLog(logfile, content)
+	if err != nil {
+		fmt.Printf("\033[31m[FAIL]\033[0m Error appending content to logfile (\033[0;36m%s\033[0m): %s\n", logfile, err)
+		return
+	}
+}
+
+// O(log(n)) Complexity binary search-based verification with recursion
 func binary_search_verification(base string, target string) {
-	basefiles, err := os.ReadDir(base)
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error reading directory (%s): %s\n", base, err)
-		return
-	}
+	baseFiles := make(map[string]string)
 
-	targetfiles, err := os.ReadDir(target)
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error reading directory (%s): %s\n", target, err)
-		return
-	}
-
-	targetFilenames := make([]string, 0)
-	for _, f := range targetfiles {
-		if !f.IsDir() {
-			targetFilenames = append(targetFilenames, f.Name())
-		}
-	}
-
-	for _, entry := range basefiles {
-		if entry.IsDir() {
-			continue
+	// Walk the base directory recursively and store file paths and checksums
+	filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
+		if err != nil {
+			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
+			return err
 		}
 
-		currentFileName := entry.Name()
-		currentChecksum := checksum(base + "/" + currentFileName)
-		low, high := 0, len(targetFilenames)-1
-		found := false
+		if !info.IsDir() {
+			relativePath, _ := filepath.Rel(base, path) // Get relative path for base
+			baseFiles[relativePath] = checksum(path)
+		}
+		return nil
+	})
 
-		for low <= high {
-			mid := low + (high-low)/2
-			compareResult := strings.Compare(targetFilenames[mid], currentFileName)
-			if compareResult == 0 {
-				targetChecksum := checksum(target + "/" + targetFilenames[mid])
-				if currentChecksum == targetChecksum {
-					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, currentFileName, target, targetFilenames[mid])
+	// Walk the target directory and compare files
+	filepath.WalkDir(target, func(path string, info os.DirEntry, err error) error {
+		if err != nil {
+			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
+			return err
+		}
+
+		if !info.IsDir() {
+			relativePath, _ := filepath.Rel(target, path) // Get relative path for target
+
+			targetChecksum := checksum(path)
+			if baseChecksum, found := baseFiles[relativePath]; found {
+				if baseChecksum == targetChecksum {
+					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
 				} else {
-					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, targetFilenames[mid])
-					var conflicts_log = target + "/" + targetFilenames[mid] + "\n"
+					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
+					var conflicts_log = target + "/" + relativePath + "\n"
 					log_check(conflicts_log, "conflicts.log")
 				}
-				found = true
-				break
-			} else if compareResult < 0 {
-				low = mid + 1
 			} else {
-				high = mid - 1
+				fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
+				var target_specific_log = target + "/" + relativePath + "\n"
+				log_check(target_specific_log, "target_specific.log")
 			}
 		}
+		return nil
+	})
 
-		if !found {
-			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target (\033[0;36m%s/%s\033[0m)\n", base, currentFileName)
-			var base_specific_log = base + "/" + currentFileName + "\n"
+	// Look for files that are in base but not in target
+	for relativePath, _ := range baseFiles {
+		targetPath := filepath.Join(target, relativePath)
+		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target (\033[0;36m%s/%s\033[0m)\n", base, relativePath)
+			var base_specific_log = base + "/" + relativePath + "\n"
 			log_check(base_specific_log, "base_specific.log")
-		}
-	}
-
-	baseFilenames := make([]string, 0)
-	for _, f := range basefiles {
-		if !f.IsDir() {
-			baseFilenames = append(baseFilenames, f.Name())
-		}
-	}
-
-	for _, targetFile := range targetfiles {
-		if targetFile.IsDir() {
-			continue
-		}
-		targetFileName := targetFile.Name()
-		low, high := 0, len(baseFilenames)-1
-		found := false
-
-		for low <= high {
-			mid := low + (high-low)/2
-			compareResult := strings.Compare(baseFilenames[mid], targetFileName)
-			if compareResult == 0 {
-				found = true
-				break
-			} else if compareResult < 0 {
-				low = mid + 1
-			} else {
-				high = mid - 1
-			}
-		}
-
-		if !found {
-			fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, targetFileName)
-			var target_specific_log = target + "/" + targetFileName + "\n"
-			log_check(target_specific_log, "target_specific.log")
 		}
 	}
 }
