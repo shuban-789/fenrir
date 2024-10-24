@@ -22,11 +22,3 @@ clean:
 	rm -f base_specific.log
 	@echo "Removing target_specific.log..."
 	rm -f target_specific.log
-
-runll:
-	@echo "Running parallel/fenrirll.go..."
-	go run parallel/fenrirll.go -b $(BASE) -t $(TARGET)
-
-buildll:
-	@echo "Compiling parallel/fenrirll.go into ./fenrirll..."
-	GOARCH=$(ARCH) GOOS=$(OS) go build -o fenrirll parallel/fenrirll.go
