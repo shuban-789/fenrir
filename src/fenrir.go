@@ -53,7 +53,6 @@ func log_check(content string, logfile string) {
 func binary_search_verification(base string, target string) {
 	baseFiles := make(map[string]string)
 
-	// Walk the base directory recursively and store file paths and checksums
 	filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -61,13 +60,12 @@ func binary_search_verification(base string, target string) {
 		}
 
 		if !info.IsDir() {
-			relativePath, _ := filepath.Rel(base, path) // Get relative path for base
+			relativePath, _ := filepath.Rel(base, path)
 			baseFiles[relativePath] = checksum(path)
 		}
 		return nil
 	})
 
-	// Walk the target directory and compare files
 	filepath.WalkDir(target, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -75,7 +73,7 @@ func binary_search_verification(base string, target string) {
 		}
 
 		if !info.IsDir() {
-			relativePath, _ := filepath.Rel(target, path) // Get relative path for target
+			relativePath, _ := filepath.Rel(target, path)
 
 			targetChecksum := checksum(path)
 			if baseChecksum, found := baseFiles[relativePath]; found {
@@ -95,7 +93,6 @@ func binary_search_verification(base string, target string) {
 		return nil
 	})
 
-	// Look for files that are in base but not in target
 	for relativePath, _ := range baseFiles {
 		targetPath := filepath.Join(target, relativePath)
 		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
