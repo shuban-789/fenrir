@@ -27,6 +27,24 @@ func checksum(filePath string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
+func getPermissions(filePath string) int32 {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Printf("\033[31m[FAIL]\033[0m Error reading file (\033[0;36m%s\033[0m): %s\n", filePath, err)
+		return 0
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		fmt.Printf("\033[31m[FAIL]\033[0m Error retrieving file info (\033[0;36m%s\033[0m): %s\n", filePath, err)
+		return 0
+	}
+
+	return int32(fileInfo.Mode().Perm())
+}
+
+// Append a string to one of the log files 
 func appendLog(filename string, text string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -49,9 +67,12 @@ func log_check(content string, logfile string) {
 	}
 }
 
-// Hash verification algorithm
+// Hash verification algorithm with permission checks
 func verify(base string, target string) {
-	baseFiles := make(map[string]string)
+	baseFiles := make(map[string]struct {
+		checksum string
+		permissions int32
+	})
 
 	filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
@@ -61,7 +82,13 @@ func verify(base string, target string) {
 
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(base, path)
-			baseFiles[relativePath] = checksum(path)
+			baseFiles[relativePath] = struct {
+				checksum    string
+				permissions int32
+			}{
+				checksum:    checksum(path),
+				permissions: getPermissions(path),
+			}
 		}
 		return nil
 	})
@@ -76,28 +103,36 @@ func verify(base string, target string) {
 			relativePath, _ := filepath.Rel(target, path)
 
 			targetChecksum := checksum(path)
-			if baseChecksum, found := baseFiles[relativePath]; found {
-				if baseChecksum == targetChecksum {
+			targetPermissions := getPermissions(path)
+			if baseFile, found := baseFiles[relativePath]; found {
+				if baseFile.checksum == targetChecksum {
 					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
 				} else {
 					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
-					var conflicts_log = target + "/" + relativePath + "\n"
+					conflicts_log := target + "/" + relativePath + "\n"
 					log_check(conflicts_log, "conflicts.log")
+				}
+				if baseFile.permissions != targetPermissions {
+					fmt.Printf("\033[31m[ALERT]\033[0m Permission conflict (\033[0;36m%s/%s\033[0m): (base: \033[0;36m%o\033[0m, target: \033[0;36m%o\033[0m)\n", target, relativePath, baseFile.permissions, targetPermissions)
+					permission_conflict_log := target + "/" + relativePath + "\n"
+					log_check(permission_conflict_log, "permission_conflicts.log")
+				} else {
+					fmt.Printf("\033[32m[OK]\033[0m Permissions matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
 				}
 			} else {
 				fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
-				var target_specific_log = target + "/" + relativePath + "\n"
+				target_specific_log := target + "/" + relativePath + "\n"
 				log_check(target_specific_log, "target_specific.log")
 			}
 		}
 		return nil
 	})
 
-	for relativePath, _ := range baseFiles {
+	for relativePath := range baseFiles {
 		targetPath := filepath.Join(target, relativePath)
 		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
 			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target (\033[0;36m%s/%s\033[0m)\n", base, relativePath)
-			var base_specific_log = base + "/" + relativePath + "\n"
+			base_specific_log := base + "/" + relativePath + "\n"
 			log_check(base_specific_log, "base_specific.log")
 		}
 	}

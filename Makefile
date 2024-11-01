@@ -22,3 +22,5 @@ clean:
 	rm -f base_specific.log
 	@echo "Removing target_specific.log..."
 	rm -f target_specific.log
+	@echo "Removing permission_conflicts.log..."
+	rm -f permission_conflicts.log
