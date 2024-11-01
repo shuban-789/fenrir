@@ -50,7 +50,7 @@ func log_check(content string, logfile string) {
 }
 
 // O(log(n)) Complexity binary search-based verification with recursion
-func binary_search_verification(base string, target string) {
+func verify(base string, target string) {
 	baseFiles := make(map[string]string)
 
 	filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
@@ -159,7 +159,13 @@ func main() {
 					return
 				}
 				defer target_specific.Close()
-				binary_search_verification(base, target)
+				permission_conflict_log, permission_conflict_log_err := os.Create("permission_conflicts.log")
+				if permission_conflict_log_err != nil {
+					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mpermission_conflicts.log\033[0m): %s\n", permission_conflict_log_err)
+					return
+				}
+				defer permission_conflict_log.Close()
+				verify(base, target)
 			} else {
 				help()
 			}
@@ -167,7 +173,7 @@ func main() {
 			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-b") == 0 {
 				target := os.Args[2]
 				base := os.Args[4]
-				binary_search_verification(base, target)
+				verify(base, target)
 			} else {
 				help()
 			}
