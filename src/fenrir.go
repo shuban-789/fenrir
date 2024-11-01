@@ -27,7 +27,7 @@ func checksum(filePath string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func getPermissions(filePath string) int32 {
+func get_permissions(filePath string) int32 {
 	file, err := os.Open(filePath)
 	if err != nil {
 		fmt.Printf("\033[31m[FAIL]\033[0m Error reading file (\033[0;36m%s\033[0m): %s\n", filePath, err)
@@ -87,7 +87,7 @@ func verify(base string, target string) {
 				permissions int32
 			}{
 				checksum:    checksum(path),
-				permissions: getPermissions(path),
+				permissions: get_permissions(path),
 			}
 		}
 		return nil
@@ -103,7 +103,7 @@ func verify(base string, target string) {
 			relativePath, _ := filepath.Rel(target, path)
 
 			targetChecksum := checksum(path)
-			targetPermissions := getPermissions(path)
+			targetPermissions := get_permissions(path)
 			if baseFile, found := baseFiles[relativePath]; found {
 				if baseFile.checksum == targetChecksum {
 					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
