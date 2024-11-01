@@ -49,7 +49,7 @@ func log_check(content string, logfile string) {
 	}
 }
 
-// O(log(n)) Complexity binary search-based verification with recursion
+// Hash verification algorithm
 func verify(base string, target string) {
 	baseFiles := make(map[string]string)
 
