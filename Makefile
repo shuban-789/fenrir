@@ -24,3 +24,7 @@ clean:
 	rm -f target_specific.log
 	@echo "Removing permission_conflicts.log..."
 	rm -f permission_conflicts.log
+	@echo "Removing exhash.txt..."
+	rm -f exhash.txt
+	@echo "Removing experm.txt..."
+	rm -f experm.txt
