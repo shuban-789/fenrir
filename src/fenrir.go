@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"os"
+	"bufio"
 	"crypto/sha256"
-	"strings"
+	"fmt"
 	"io"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SHA-256 checksum verification function for files
@@ -27,6 +28,7 @@ func checksum(filePath string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
+// Retrieve file permissions in octal format
 func get_permissions(filePath string) int32 {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -44,7 +46,7 @@ func get_permissions(filePath string) int32 {
 	return int32(fileInfo.Mode().Perm())
 }
 
-// Append a string to one of the log files 
+// Append a string to one of the log files
 func appendLog(filename string, text string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -59,6 +61,7 @@ func appendLog(filename string, text string) error {
 	return nil
 }
 
+// Append a string to a log file
 func log_check(content string, logfile string) {
 	err := appendLog(logfile, content)
 	if err != nil {
@@ -67,6 +70,7 @@ func log_check(content string, logfile string) {
 	}
 }
 
+// Load hash (xh) and permission (xp) exclusions
 func load_exclusions(filePath string) (map[string]bool, error) {
 	exclusions := make(map[string]bool)
 	file, err := os.Open(filePath)
@@ -86,13 +90,13 @@ func load_exclusions(filePath string) (map[string]bool, error) {
 }
 
 // Hash verification algorithm with permission checks
-func verify(base, target string, fexcfile string, pexcfile string) {
-	fileExclusions, err := load_exclusions(fexcfile)
+func verify(base, target, hashExcFile, permExcFile string) {
+	hashExclusions, err := load_exclusions(hashExcFile)
 	if err != nil {
 		fmt.Printf("\033[31m[FAIL]\033[0m Error loading hash exclusion file: %s\n", err)
 		return
 	}
-	permExclusions, err := load_exclusions(pexcfile)
+	permExclusions, err := load_exclusions(permExcFile)
 	if err != nil {
 		fmt.Printf("\033[31m[FAIL]\033[0m Error loading permission exclusion file: %s\n", err)
 		return
@@ -131,7 +135,7 @@ func verify(base, target string, fexcfile string, pexcfile string) {
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(target, path)
 
-			if _, excluded := fileExclusions[relativePath]; !excluded {
+			if _, excluded := hashExclusions[relativePath]; !excluded {
 				targetChecksum := checksum(path)
 				if baseFile, found := baseFiles[relativePath]; found && baseFile.checksum != targetChecksum {
 					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
@@ -165,22 +169,26 @@ func help() {
 	fmt.Printf("\nOptions:\n")
 	fmt.Printf("	-b, Declares base directory (REQUIRES TARGET)\n")
 	fmt.Printf("	-t, Declares target directory (REQUIRES BASE)\n")
+	fmt.Printf("	-xh, Declares hash exclusion file\n")
+	fmt.Printf("	-xp, Declares permission exclusion file\n")
 	fmt.Printf("	-c, Clears all log files\n")
 	fmt.Printf("	-h, Shows usage menu\n")
 	fmt.Printf("\nFormat:\n")
 	fmt.Printf("	./fenrir -h\n")
 	fmt.Printf("	./fenrir -b <BASE> -t <TARGET>\n")
-	fmt.Printf("	./fenrir -t <TARGET> -b <BASE>\n")
+	fmt.Printf("	./fenrir -b <BASE> -t <TARGET> -xh <HASH_EXCLUSIONS> -xp <PERM_EXCLUSIONS>\n")
 	fmt.Printf("	./fenrir -c\n")
 	fmt.Printf("\nExamples:\n")
-	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir\n")
+	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir -xh exhash.txt -xp experm.txt\n")
 }
 
+// Clean all log files from current directory
 func clean() {
 	var logs = []string{
 		"conflicts.log",
 		"base_specific.log",
 		"target_specific.log",
+		"permission_conflicts.log",
 	}
 
 	for i := 0; i < len(logs); i++ {
@@ -192,52 +200,44 @@ func clean() {
 
 // Main function and argument logic
 func main() {
-	if len(os.Args) > 1 {
-		if strings.Compare(os.Args[1], "-b") == 0 {
-			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-t") == 0 {
-				base := os.Args[2]
-				target := os.Args[4]
-				conflict_log, conflict_log_err := os.Create("conflicts.log")
-				if conflict_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", conflict_log_err)
-					return
-				}
-				defer conflict_log.Close()
-				base_specific, base_specific_log_err := os.Create("base_specific.log")
-				if base_specific_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mbase_specific.log\033[0m): %s\n", base_specific_log_err)
-					return
-				}
-				defer base_specific.Close()
-				target_specific, target_specific_log_err := os.Create("target_specific.log")
-				if target_specific_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mtarget_specific.log\033[0m): %s\n", target_specific_log_err)
-					return
-				}
-				defer target_specific.Close()
-				permission_conflict_log, permission_conflict_log_err := os.Create("permission_conflicts.log")
-				if permission_conflict_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mpermission_conflicts.log\033[0m): %s\n", permission_conflict_log_err)
-					return
-				}
-				defer permission_conflict_log.Close()
-				verify(base, target, "", "")
-			} else {
-				help()
+	var base, target, hashExclusions, permExclusions string
+
+	for i := 1; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "-b":
+			if i+1 < len(os.Args) {
+				base = os.Args[i+1]
+				i++
 			}
-		} else if strings.Compare(os.Args[1], "-t") == 0 {
-			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-b") == 0 {
-				target := os.Args[2]
-				base := os.Args[4]
-				verify(base, target, "", "")
-			} else {
-				help()
+		case "-t":
+			if i+1 < len(os.Args) {
+				target = os.Args[i+1]
+				i++
 			}
-		} else if strings.Compare(os.Args[1], "-c") == 0 {
+		case "-xh":
+			if i+1 < len(os.Args) {
+				hashExclusions = os.Args[i+1]
+				i++
+			}
+		case "-xp":
+			if i+1 < len(os.Args) {
+				permExclusions = os.Args[i+1]
+				i++
+			}
+		case "-c":
 			clean()
-		} else {
+			return
+		case "-h":
 			help()
+			return
+		default:
+			help()
+			return
 		}
+	}
+
+	if base != "" && target != "" {
+		verify(base, target, hashExclusions, permExclusions)
 	} else {
 		help()
 	}
