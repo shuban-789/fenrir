@@ -86,15 +86,15 @@ func load_exclusions(filePath string) (map[string]bool, error) {
 }
 
 // Hash verification algorithm with permission checks
-func verify(base, target string) {
-	hashExclusions, err := load_exclusions("exhash.txt")
+func verify(base, target string, fexcfile string, pexcfile string) {
+	fileExclusions, err := load_exclusions(fexcfile)
 	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error loading exhash.txt: %s\n", err)
+		fmt.Printf("\033[31m[FAIL]\033[0m Error loading hash exclusion file: %s\n", err)
 		return
 	}
-	permExclusions, err := load_exclusions("experm.txt")
+	permExclusions, err := load_exclusions(pexcfile)
 	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error loading experm.txt: %s\n", err)
+		fmt.Printf("\033[31m[FAIL]\033[0m Error loading permission exclusion file: %s\n", err)
 		return
 	}
 
@@ -131,7 +131,7 @@ func verify(base, target string) {
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(target, path)
 
-			if _, excluded := hashExclusions[relativePath]; !excluded {
+			if _, excluded := fileExclusions[relativePath]; !excluded {
 				targetChecksum := checksum(path)
 				if baseFile, found := baseFiles[relativePath]; found && baseFile.checksum != targetChecksum {
 					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
@@ -221,7 +221,7 @@ func main() {
 					return
 				}
 				defer permission_conflict_log.Close()
-				verify(base, target)
+				verify(base, target, "", "")
 			} else {
 				help()
 			}
@@ -229,7 +229,7 @@ func main() {
 			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-b") == 0 {
 				target := os.Args[2]
 				base := os.Args[4]
-				verify(base, target)
+				verify(base, target, "", "")
 			} else {
 				help()
 			}
