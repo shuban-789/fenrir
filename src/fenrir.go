@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bufio"
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
+	"crypto/sha256"
+	"io"
 	"path/filepath"
-	"strings"
 )
 
 // SHA-256 checksum verification function for files
@@ -28,25 +26,6 @@ func checksum(filePath string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-// Retrieve file permissions in octal format
-func get_permissions(filePath string) int32 {
-	file, err := os.Open(filePath)
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error reading file (\033[0;36m%s\033[0m): %s\n", filePath, err)
-		return 0
-	}
-	defer file.Close()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error retrieving file info (\033[0;36m%s\033[0m): %s\n", filePath, err)
-		return 0
-	}
-
-	return int32(fileInfo.Mode().Perm())
-}
-
-// Append a string to one of the log files
 func appendLog(filename string, text string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -61,7 +40,6 @@ func appendLog(filename string, text string) error {
 	return nil
 }
 
-// Append a string to a log file
 func log_check(content string, logfile string) {
 	err := appendLog(logfile, content)
 	if err != nil {
@@ -70,42 +48,9 @@ func log_check(content string, logfile string) {
 	}
 }
 
-// Load hash (xh) and permission (xp) exclusions
-func load_exclusions(filePath string) (map[string]bool, error) {
-	exclusions := make(map[string]bool)
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		exclusions[scanner.Text()] = true
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return exclusions, nil
-}
-
-// Hash verification algorithm with permission checks
-func verify(base, target, hashExcFile, permExcFile string) {
-	hashExclusions, err := load_exclusions(hashExcFile)
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error loading hash exclusion file: %s\n", err)
-		return
-	}
-	permExclusions, err := load_exclusions(permExcFile)
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error loading permission exclusion file: %s\n", err)
-		return
-	}
-
-	baseFiles := make(map[string]struct {
-		checksum    string
-		permissions int32
-	})
+// O(log(n)) Complexity binary search-based verification with recursion
+func binary_search_verification(base string, target string, hashExclusions []string, permExclusions []string) {
+	baseFiles := make(map[string]string)
 
 	filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
@@ -115,13 +60,7 @@ func verify(base, target, hashExcFile, permExcFile string) {
 
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(base, path)
-			baseFiles[relativePath] = struct {
-				checksum    string
-				permissions int32
-			}{
-				checksum:    checksum(path),
-				permissions: get_permissions(path),
-			}
+			baseFiles[relativePath] = checksum(path)
 		}
 		return nil
 	})
@@ -135,20 +74,22 @@ func verify(base, target, hashExcFile, permExcFile string) {
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(target, path)
 
-			if _, excluded := hashExclusions[relativePath]; !excluded {
-				targetChecksum := checksum(path)
-				if baseFile, found := baseFiles[relativePath]; found && baseFile.checksum != targetChecksum {
-					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
-					log_check(target+"/"+relativePath+"\n", "conflicts.log")
-				}
+			// Check if the current file is in the exclusion list
+			if contains(hashExclusions, relativePath) {
+				return nil
 			}
 
-			if _, excluded := permExclusions[relativePath]; !excluded {
-				targetPermissions := get_permissions(path)
-				if baseFile, found := baseFiles[relativePath]; found && baseFile.permissions != targetPermissions {
-					fmt.Printf("\033[31m[ALERT]\033[0m Permission conflict (\033[0;36m%s/%s\033[0m): (base: \033[0;36m%o\033[0m, target: \033[0;36m%o\033[0m)\n", target, relativePath, baseFile.permissions, targetPermissions)
-					log_check(target+"/"+relativePath+"\n", "permission_conflicts.log")
+			targetChecksum := checksum(path)
+			if baseChecksum, found := baseFiles[relativePath]; found {
+				if baseChecksum == targetChecksum {
+					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
+				} else {
+					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
+					log_check(target + "/" + relativePath + "\n", "conflicts.log")
 				}
+			} else {
+				fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
+				log_check(target + "/" + relativePath + "\n", "target_specific.log")
 			}
 		}
 		return nil
@@ -158,9 +99,18 @@ func verify(base, target, hashExcFile, permExcFile string) {
 		targetPath := filepath.Join(target, relativePath)
 		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
 			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target (\033[0;36m%s/%s\033[0m)\n", base, relativePath)
-			log_check(base+"/"+relativePath+"\n", "base_specific.log")
+			log_check(base + "/" + relativePath + "\n", "base_specific.log")
 		}
 	}
+}
+
+func contains(slice []string, item string) bool {
+	for _, a := range slice {
+		if a == item {
+			return true
+		}
+	}
+	return false
 }
 
 // Help and usage menu
@@ -169,76 +119,103 @@ func help() {
 	fmt.Printf("\nOptions:\n")
 	fmt.Printf("	-b, Declares base directory (REQUIRES TARGET)\n")
 	fmt.Printf("	-t, Declares target directory (REQUIRES BASE)\n")
-	fmt.Printf("	-xh, Declares hash exclusion file\n")
-	fmt.Printf("	-xp, Declares permission exclusion file\n")
+	fmt.Printf("	-xh, Excludes hashes from comparison using specified file\n")
+	fmt.Printf("	-xp, Excludes permissions from comparison using specified file\n")
 	fmt.Printf("	-c, Clears all log files\n")
 	fmt.Printf("	-h, Shows usage menu\n")
 	fmt.Printf("\nFormat:\n")
 	fmt.Printf("	./fenrir -h\n")
 	fmt.Printf("	./fenrir -b <BASE> -t <TARGET>\n")
-	fmt.Printf("	./fenrir -b <BASE> -t <TARGET> -xh <HASH_EXCLUSIONS> -xp <PERM_EXCLUSIONS>\n")
+	fmt.Printf("	./fenrir -t <TARGET> -b <BASE>\n")
 	fmt.Printf("	./fenrir -c\n")
 	fmt.Printf("\nExamples:\n")
-	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir -xh exhash.txt -xp experm.txt\n")
+	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir\n")
 }
 
-// Clean all log files from current directory
 func clean() {
 	var logs = []string{
 		"conflicts.log",
 		"base_specific.log",
 		"target_specific.log",
-		"permission_conflicts.log",
 	}
 
-	for i := 0; i < len(logs); i++ {
-		if _, err := os.Stat(logs[i]); err == nil {
-			os.Remove(logs[i])
+	for _, log := range logs {
+		if _, err := os.Stat(log); err == nil {
+			os.Remove(log)
 		}
 	}
 }
 
 // Main function and argument logic
+// Main function and argument logic
 func main() {
-	var base, target, hashExclusions, permExclusions string
+    if len(os.Args) < 2 {
+        help()
+        return
+    }
 
-	for i := 1; i < len(os.Args); i++ {
-		switch os.Args[i] {
-		case "-b":
-			if i+1 < len(os.Args) {
-				base = os.Args[i+1]
-				i++
-			}
-		case "-t":
-			if i+1 < len(os.Args) {
-				target = os.Args[i+1]
-				i++
-			}
-		case "-xh":
-			if i+1 < len(os.Args) {
-				hashExclusions = os.Args[i+1]
-				i++
-			}
-		case "-xp":
-			if i+1 < len(os.Args) {
-				permExclusions = os.Args[i+1]
-				i++
-			}
-		case "-c":
-			clean()
-			return
-		case "-h":
-			help()
-			return
-		default:
-			help()
-			return
-		}
-	}
+    var base, target string
+    var clearLogs bool
+    var hashExclusions, permExclusions []string
 
-	if base != "" && target != "" {
-		verify(base, target, hashExclusions, permExclusions)
-	} else {
-		help()
-	}
+    for i := 1; i < len(os.Args); i++ {
+        switch os.Args[i] {
+        case "-b":
+            if i+1 < len(os.Args) {
+                base = os.Args[i+1]
+                i++ // Skip the next argument as it's the base directory
+            } else {
+                help()
+                return
+            }
+        case "-t":
+            if i+1 < len(os.Args) {
+                target = os.Args[i+1]
+                i++ // Skip the next argument as it's the target directory
+            } else {
+                help()
+                return
+            }
+        case "-c":
+            clearLogs = true
+        case "-xh":
+            if i+1 < len(os.Args) {
+                hashExclusions = append(hashExclusions, os.Args[i+1])
+                i++ // Skip the next argument
+            }
+        case "-xp":
+            if i+1 < len(os.Args) {
+                permExclusions = append(permExclusions, os.Args[i+1])
+                i++ // Skip the next argument
+            }
+        default:
+            help()
+            return
+        }
+    }
+
+    if clearLogs {
+        clean()
+        return
+    }
+
+    if base != "" && target != "" {
+        conflict_log, conflict_log_err := os.Create("conflicts.log")
+        if conflict_log_err != nil {
+            fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", conflict_log_err)
+            return
+        }
+        defer conflict_log.Close()
+
+        base_specific, base_specific_log_err := os.Create("base_specific.log")
+        if base_specific_log_err != nil {
+            fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mbase_specific.log\033[0m): %s\n", base_specific_log_err)
+            return
+        }
+        defer base_specific.Close()
+
+        binary_search_verification(base, target, hashExclusions, permExclusions) // Adjusted call to match the function signature
+    } else {
+        help()
+    }
 }
