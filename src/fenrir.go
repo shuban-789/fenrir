@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"crypto/sha256"
-	"strings"
 	"io"
 	"path/filepath"
 )
@@ -44,7 +43,7 @@ func get_permissions(filePath string) int32 {
 	return int32(fileInfo.Mode().Perm())
 }
 
-// Append a string to one of the log files 
+// Append a string to a log file
 func appendLog(filename string, text string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -59,18 +58,48 @@ func appendLog(filename string, text string) error {
 	return nil
 }
 
-func log_check(content string, logfile string) {
-	err := appendLog(logfile, content)
+// Parse exclusions from files
+func loadExclusions(filename string) (map[string]bool, error) {
+	exclusions := make(map[string]bool)
+	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error appending content to logfile (\033[0;36m%s\033[0m): %s\n", logfile, err)
-		return
+		return nil, err
 	}
+	defer file.Close()
+
+	var line string
+	for {
+		_, err := fmt.Fscanln(file, &line)
+		if err != nil {
+			break
+		}
+		exclusions[line] = true
+	}
+	return exclusions, nil
 }
 
 // Hash verification algorithm with permission checks
-func verify(base string, target string) {
+func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
+	var ignoreHashes, ignorePerms map[string]bool
+	var err error
+
+	if ignoreHashFile != "" {
+		ignoreHashes, err = loadExclusions(ignoreHashFile)
+		if err != nil {
+			fmt.Printf("\033[31m[FAIL]\033[0m Error loading hash exclusion file: %s\n", err)
+			return
+		}
+	}
+	if ignorePermFile != "" {
+		ignorePerms, err = loadExclusions(ignorePermFile)
+		if err != nil {
+			fmt.Printf("\033[31m[FAIL]\033[0m Error loading permission exclusion file: %s\n", err)
+			return
+		}
+	}
+
 	baseFiles := make(map[string]struct {
-		checksum string
+		checksum    string
 		permissions int32
 	})
 
@@ -102,6 +131,10 @@ func verify(base string, target string) {
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(target, path)
 
+			if ignoreHashes[relativePath] {
+				return nil
+			}
+
 			targetChecksum := checksum(path)
 			targetPermissions := get_permissions(path)
 			if baseFile, found := baseFiles[relativePath]; found {
@@ -109,20 +142,19 @@ func verify(base string, target string) {
 					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
 				} else {
 					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
-					conflicts_log := target + "/" + relativePath + "\n"
-					log_check(conflicts_log, "conflicts.log")
+					appendLog("conflicts.log", target+"/"+relativePath+"\n")
 				}
-				if baseFile.permissions != targetPermissions {
+
+				// Permission comparison if not ignored
+				if !ignorePerms[relativePath] && baseFile.permissions != targetPermissions {
 					fmt.Printf("\033[31m[ALERT]\033[0m Permission conflict (\033[0;36m%s/%s\033[0m): (base: \033[0;36m%o\033[0m, target: \033[0;36m%o\033[0m)\n", target, relativePath, baseFile.permissions, targetPermissions)
-					permission_conflict_log := target + "/" + relativePath + "\n"
-					log_check(permission_conflict_log, "permission_conflicts.log")
+					appendLog("permission_conflicts.log", target+"/"+relativePath+"\n")
 				} else {
 					fmt.Printf("\033[32m[OK]\033[0m Permissions matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
 				}
 			} else {
 				fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
-				target_specific_log := target + "/" + relativePath + "\n"
-				log_check(target_specific_log, "target_specific.log")
+				appendLog("target_specific.log", target+"/"+relativePath+"\n")
 			}
 		}
 		return nil
@@ -130,10 +162,9 @@ func verify(base string, target string) {
 
 	for relativePath := range baseFiles {
 		targetPath := filepath.Join(target, relativePath)
-		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		if _, err := os.Stat(targetPath); os.IsNotExist(err) && !ignoreHashes[relativePath] {
 			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target (\033[0;36m%s/%s\033[0m)\n", base, relativePath)
-			base_specific_log := base + "/" + relativePath + "\n"
-			log_check(base_specific_log, "base_specific.log")
+			appendLog("base_specific.log", base+"/"+relativePath+"\n")
 		}
 	}
 }
@@ -145,78 +176,60 @@ func help() {
 	fmt.Printf("	-b, Declares base directory (REQUIRES TARGET)\n")
 	fmt.Printf("	-t, Declares target directory (REQUIRES BASE)\n")
 	fmt.Printf("	-c, Clears all log files\n")
+	fmt.Printf("	-xh <file>, File for ignored hash comparisons\n")
+	fmt.Printf("	-xp <file>, File for ignored permission comparisons\n")
 	fmt.Printf("	-h, Shows usage menu\n")
 	fmt.Printf("\nFormat:\n")
 	fmt.Printf("	./fenrir -h\n")
 	fmt.Printf("	./fenrir -b <BASE> -t <TARGET>\n")
 	fmt.Printf("	./fenrir -t <TARGET> -b <BASE>\n")
+	fmt.Printf("	./fenrir -b <BASE> -t <TARGET> -xh <HASHEXCFILE> -xp <PERMEXCFILE>\n")
 	fmt.Printf("	./fenrir -c\n")
 	fmt.Printf("\nExamples:\n")
 	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir\n")
+	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir -xh exlcusions.txt\n")
+	fmt.Printf("	./fenrir -b ./simulation/base_dir -t ./simulation/target_dir -xp exlcusions.txt\n")
 }
 
+// Clean log files
 func clean() {
-	var logs = []string{
-		"conflicts.log",
-		"base_specific.log",
-		"target_specific.log",
-	}
-
-	for i := 0; i < len(logs); i++ {
-		if _, err := os.Stat(logs[i]); err == nil {
-			os.Remove(logs[i])
+	logs := []string{"conflicts.log", "base_specific.log", "target_specific.log", "permission_conflicts.log"}
+	for _, log := range logs {
+		if _, err := os.Stat(log); err == nil {
+			os.Remove(log)
 		}
 	}
 }
 
 // Main function and argument logic
 func main() {
-	if len(os.Args) > 1 {
-		if strings.Compare(os.Args[1], "-b") == 0 {
-			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-t") == 0 {
-				base := os.Args[2]
-				target := os.Args[4]
-				conflict_log, conflict_log_err := os.Create("conflicts.log")
-				if conflict_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mconflicts.log\033[0m): %s\n", conflict_log_err)
-					return
-				}
-				defer conflict_log.Close()
-				base_specific, base_specific_log_err := os.Create("base_specific.log")
-				if base_specific_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mbase_specific.log\033[0m): %s\n", base_specific_log_err)
-					return
-				}
-				defer base_specific.Close()
-				target_specific, target_specific_log_err := os.Create("target_specific.log")
-				if target_specific_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mtarget_specific.log\033[0m): %s\n", target_specific_log_err)
-					return
-				}
-				defer target_specific.Close()
-				permission_conflict_log, permission_conflict_log_err := os.Create("permission_conflicts.log")
-				if permission_conflict_log_err != nil {
-					fmt.Printf("\033[31m[FAIL]\033[0m Error creating log file (\033[0;36mpermission_conflicts.log\033[0m): %s\n", permission_conflict_log_err)
-					return
-				}
-				defer permission_conflict_log.Close()
-				verify(base, target)
-			} else {
-				help()
-			}
-		} else if strings.Compare(os.Args[1], "-t") == 0 {
-			if len(os.Args) >= 5 && strings.Compare(os.Args[3], "-b") == 0 {
-				target := os.Args[2]
-				base := os.Args[4]
-				verify(base, target)
-			} else {
-				help()
-			}
-		} else if strings.Compare(os.Args[1], "-c") == 0 {
+	var base, target, ignoreHashFile, ignorePermFile string
+
+	for i := 1; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "-b":
+			base = os.Args[i+1]
+			i++
+		case "-t":
+			target = os.Args[i+1]
+			i++
+		case "-xh":
+			ignoreHashFile = os.Args[i+1]
+			i++
+		case "-xp":
+			ignorePermFile = os.Args[i+1]
+			i++
+		case "-c":
 			clean()
-		} else {
+			return
+		case "-h":
 			help()
+			return
 		}
+	}
+
+	if base != "" && target != "" {
+		verify(base, target, ignoreHashFile, ignorePermFile)
 	} else {
 		help()
 	}
