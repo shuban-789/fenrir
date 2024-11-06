@@ -60,113 +60,127 @@ func appendLog(filename string, text string) error {
 
 // Parse exclusions from files
 func loadExclusions(filename string) (map[string]bool, error) {
-	exclusions := make(map[string]bool)
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+    exclusions := make(map[string]bool)
+    file, err := os.Open(filename)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
 
-	var line string
-	for {
-		_, err := fmt.Fscanln(file, &line)
-		if err != nil {
-			break
-		}
-		exclusions[line] = true
-	}
-	return exclusions, nil
+    var line string
+    for {
+        _, err := fmt.Fscanln(file, &line)
+        if err != nil {
+            break
+        }
+        normalizedPath := filepath.Clean(line)
+        fmt.Printf("Exclusion loaded: %s\n", normalizedPath) // Debug print
+        exclusions[normalizedPath] = true
+    }
+    return exclusions, nil
 }
 
 // Hash verification algorithm with permission checks
+// Hash verification algorithm with permission checks
 func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
-	var ignoreHashes, ignorePerms map[string]bool
-	var err error
+    // Initialize the maps to avoid nil errors
+    ignoreHashes := make(map[string]bool)
+    ignorePerms := make(map[string]bool)
 
-	if ignoreHashFile != "" {
-		ignoreHashes, err = loadExclusions(ignoreHashFile)
-		if err != nil {
-			fmt.Printf("\033[31m[FAIL]\033[0m Error loading hash exclusion file: %s\n", err)
-			return
-		}
-	}
-	if ignorePermFile != "" {
-		ignorePerms, err = loadExclusions(ignorePermFile)
-		if err != nil {
-			fmt.Printf("\033[31m[FAIL]\033[0m Error loading permission exclusion file: %s\n", err)
-			return
-		}
-	}
+    if ignoreHashFile != "" {
+        var err error
+        ignoreHashes, err = loadExclusions(ignoreHashFile)
+        if err != nil {
+            fmt.Printf("\033[31m[FAIL]\033[0m Error loading hash exclusion file: %s\n", err)
+            return
+        }
+    }
+    if ignorePermFile != "" {
+        var err error
+        ignorePerms, err = loadExclusions(ignorePermFile)
+        if err != nil {
+            fmt.Printf("\033[31m[FAIL]\033[0m Error loading permission exclusion file: %s\n", err)
+            return
+        }
+    }
 
-	baseFiles := make(map[string]struct {
-		checksum    string
-		permissions int32
-	})
+    baseFiles := make(map[string]struct {
+        checksum    string
+        permissions int32
+    })
 
-	filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
-		if err != nil {
-			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
-			return err
-		}
+    // Walk the base directory
+    filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
+        if err != nil {
+            fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
+            return err
+        }
 
-		if !info.IsDir() {
-			relativePath, _ := filepath.Rel(base, path)
-			baseFiles[relativePath] = struct {
-				checksum    string
-				permissions int32
-			}{
-				checksum:    checksum(path),
-				permissions: get_permissions(path),
-			}
-		}
-		return nil
-	})
+        if !info.IsDir() {
+            relativePath, _ := filepath.Rel(base, path)
+            baseFiles[relativePath] = struct {
+                checksum    string
+                permissions int32
+            }{
+                checksum:    checksum(path),
+                permissions: get_permissions(path),
+            }
+        }
+        return nil
+    })
 
-	filepath.WalkDir(target, func(path string, info os.DirEntry, err error) error {
-		if err != nil {
-			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
-			return err
-		}
+    // Walk the target directory
+    filepath.WalkDir(target, func(path string, info os.DirEntry, err error) error {
+        if err != nil {
+            fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
+            return err
+        }
 
-		if !info.IsDir() {
-			relativePath, _ := filepath.Rel(target, path)
+        if !info.IsDir() {
+            relativePath, _ := filepath.Rel(target, path)
+            normalizedRelativePath := filepath.Clean(relativePath)
 
-			if ignoreHashes[relativePath] {
-				return nil
-			}
+            // Skip if the file is in ignoreHashes
+            if ignoreHashes[normalizedRelativePath] {
+                fmt.Printf("Skipping hash check for excluded file: %s\n", normalizedRelativePath)
+                return nil
+            }
 
-			targetChecksum := checksum(path)
-			targetPermissions := get_permissions(path)
-			if baseFile, found := baseFiles[relativePath]; found {
-				if baseFile.checksum == targetChecksum {
-					fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
-				} else {
-					fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
-					appendLog("conflicts.log", target+"/"+relativePath+"\n")
-				}
+            targetChecksum := checksum(path)
+            targetPermissions := get_permissions(path)
 
-				// Permission comparison if not ignored
-				if !ignorePerms[relativePath] && baseFile.permissions != targetPermissions {
-					fmt.Printf("\033[31m[ALERT]\033[0m Permission conflict (\033[0;36m%s/%s\033[0m): (base: \033[0;36m%o\033[0m, target: \033[0;36m%o\033[0m)\n", target, relativePath, baseFile.permissions, targetPermissions)
-					appendLog("permission_conflicts.log", target+"/"+relativePath+"\n")
-				} else {
-					fmt.Printf("\033[32m[OK]\033[0m Permissions matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, relativePath, target, relativePath)
-				}
-			} else {
-				fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, relativePath)
-				appendLog("target_specific.log", target+"/"+relativePath+"\n")
-			}
-		}
-		return nil
-	})
+            if baseFile, found := baseFiles[normalizedRelativePath]; found {
+                if baseFile.checksum == targetChecksum {
+                    fmt.Printf("\033[32m[OK]\033[0m File matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, normalizedRelativePath, target, normalizedRelativePath)
+                } else {
+                    fmt.Printf("\033[31m[ALERT]\033[0m Checksum conflict (\033[0;36m%s/%s\033[0m)\n", target, normalizedRelativePath)
+                    appendLog("conflicts.log", target+"/"+normalizedRelativePath+"\n")
+                }
 
-	for relativePath := range baseFiles {
-		targetPath := filepath.Join(target, relativePath)
-		if _, err := os.Stat(targetPath); os.IsNotExist(err) && !ignoreHashes[relativePath] {
-			fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target (\033[0;36m%s/%s\033[0m)\n", base, relativePath)
-			appendLog("base_specific.log", base+"/"+relativePath+"\n")
-		}
-	}
+                // Permission comparison if not ignored
+                if !ignorePerms[normalizedRelativePath] && baseFile.permissions != targetPermissions {
+                    fmt.Printf("\033[31m[ALERT]\033[0m Permission conflict (\033[0;36m%s/%s\033[0m): (base: \033[0;36m%o\033[0m, target: \033[0;36m%o\033[0m)\n", target, normalizedRelativePath, baseFile.permissions, targetPermissions)
+                    appendLog("permission_conflicts.log", target+"/"+normalizedRelativePath+"\n")
+                } else {
+                    fmt.Printf("\033[32m[OK]\033[0m Permissions matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", base, normalizedRelativePath, target, normalizedRelativePath)
+                }
+            } else {
+                fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", target, normalizedRelativePath)
+                appendLog("target_specific.log", target+"/"+normalizedRelativePath+"\n")
+            }
+        }
+        return nil
+    })
+
+    // Check for base-specific files
+    for relativePath := range baseFiles {
+        targetPath := filepath.Join(target, relativePath)
+        normalizedRelativePath := filepath.Clean(relativePath)
+        if _, err := os.Stat(targetPath); os.IsNotExist(err) && !ignoreHashes[normalizedRelativePath] {
+            fmt.Printf("\033[31m[ALERT]\033[0m File exists in base but not in target (\033[0;36m%s/%s\033[0m)\n", base, normalizedRelativePath)
+            appendLog("base_specific.log", base+"/"+normalizedRelativePath+"\n")
+        }
+    }
 }
 
 // Help and usage menu
