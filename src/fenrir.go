@@ -74,16 +74,14 @@ func loadExclusions(filename string) (map[string]bool, error) {
             break
         }
         normalizedPath := filepath.Clean(line)
-        fmt.Printf("Exclusion loaded: %s\n", normalizedPath) // Debug print
+        fmt.Printf("Exclusion loaded: %s\n", normalizedPath)
         exclusions[normalizedPath] = true
     }
     return exclusions, nil
 }
 
 // Hash verification algorithm with permission checks
-// Hash verification algorithm with permission checks
 func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
-    // Initialize the maps to avoid nil errors
     ignoreHashes := make(map[string]bool)
     ignorePerms := make(map[string]bool)
 
@@ -108,8 +106,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
         checksum    string
         permissions int32
     })
-
-    // Walk the base directory
+    
     filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
         if err != nil {
             fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -129,7 +126,6 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
         return nil
     })
 
-    // Walk the target directory
     filepath.WalkDir(target, func(path string, info os.DirEntry, err error) error {
         if err != nil {
             fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -140,7 +136,6 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
             relativePath, _ := filepath.Rel(target, path)
             normalizedRelativePath := filepath.Clean(relativePath)
 
-            // Skip if the file is in ignoreHashes
             if ignoreHashes[normalizedRelativePath] {
                 fmt.Printf("Skipping hash check for excluded file: %s\n", normalizedRelativePath)
                 return nil
@@ -157,7 +152,6 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
                     appendLog("conflicts.log", target+"/"+normalizedRelativePath+"\n")
                 }
 
-                // Permission comparison if not ignored
                 if !ignorePerms[normalizedRelativePath] && baseFile.permissions != targetPermissions {
                     fmt.Printf("\033[31m[ALERT]\033[0m Permission conflict (\033[0;36m%s/%s\033[0m): (base: \033[0;36m%o\033[0m, target: \033[0;36m%o\033[0m)\n", target, normalizedRelativePath, baseFile.permissions, targetPermissions)
                     appendLog("permission_conflicts.log", target+"/"+normalizedRelativePath+"\n")
@@ -172,7 +166,6 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
         return nil
     })
 
-    // Check for base-specific files
     for relativePath := range baseFiles {
         targetPath := filepath.Join(target, relativePath)
         normalizedRelativePath := filepath.Clean(relativePath)
