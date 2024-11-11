@@ -167,7 +167,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 			relativePath, _ := filepath.Rel(targetAbs, absPath)
 
 			if ignoreHashes[absPath] {
-				fmt.Printf("Skipping hash check for excluded file: %s\n", absPath)
+				fmt.Printf("\033[33m[INFO]\033[0m Skipping hash check for excluded file: %s\n", absPath)
 				return nil
 			}
 
