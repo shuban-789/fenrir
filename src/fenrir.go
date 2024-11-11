@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// SHA-256 checksum verification function for files
+// SHA-256 checksum verification function for files (self explanatory)
 func checksum(filePath string) string {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -26,6 +26,7 @@ func checksum(filePath string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
+// Get permissions of a file (self explanatory)
 func get_permissions(filePath string) int32 {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -43,7 +44,7 @@ func get_permissions(filePath string) int32 {
 	return int32(fileInfo.Mode().Perm())
 }
 
-// Append a string to a log file
+// Append a string to a log file (self explanatory)
 func appendLog(filename string, text string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -60,6 +61,8 @@ func appendLog(filename string, text string) error {
 
 // Parse exclusions from files
 func loadExclusions(filename string) (map[string]bool, error) {
+    // Exlusions should be in the hashmap format
+    // { "excluded_file": true, "excluded_file2": true }
     exclusions := make(map[string]bool)
     file, err := os.Open(filename)
     if err != nil {
@@ -74,7 +77,7 @@ func loadExclusions(filename string) (map[string]bool, error) {
             break
         }
         normalizedPath := filepath.Clean(line)
-        fmt.Printf("Exclusion loaded: %s\n", normalizedPath)
+        fmt.Printf("Exclusion loaded: %s\n", normalizedPath) // Debug
         exclusions[normalizedPath] = true
     }
     return exclusions, nil
@@ -106,7 +109,8 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
         checksum    string
         permissions int32
     })
-    
+
+    // break --> base file search
     filepath.WalkDir(base, func(path string, info os.DirEntry, err error) error {
         if err != nil {
             fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -126,6 +130,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
         return nil
     })
 
+    // break --> target file search
     filepath.WalkDir(target, func(path string, info os.DirEntry, err error) error {
         if err != nil {
             fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -136,6 +141,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
             relativePath, _ := filepath.Rel(target, path)
             normalizedRelativePath := filepath.Clean(relativePath)
 
+            fmt.Printf("Checking bool: %s\n", ignoreHashes[normalizedRelativePath]) // Debug
             if ignoreHashes[normalizedRelativePath] {
                 fmt.Printf("Skipping hash check for excluded file: %s\n", normalizedRelativePath)
                 return nil
