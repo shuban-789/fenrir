@@ -33,25 +33,25 @@ func checksum(filePath string) string {
 
 // Get permissions of a file (self explanatory)
 func get_permissions(filePath string) int32 {
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error converting to absolute path (\033[0;36m%s\033[0m): %s\n", filePath, err)
-		return 0
-	}
-	file, err := os.Open(absPath)
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error reading file (\033[0;36m%s\033[0m): %s\n", absPath, err)
-		return 0
-	}
-	defer file.Close()
+    absPath, err := filepath.Abs(filePath)
+    if err != nil {
+        fmt.Printf("\033[31m[FAIL]\033[0m Error converting to absolute path (\033[0;36m%s\033[0m): %s\n", filePath, err)
+        return 0
+    }
+    file, err := os.Open(absPath)
+    if err != nil {
+        fmt.Printf("\033[31m[FAIL]\033[0m Error reading file (\033[0;36m%s\033[0m): %s\n", absPath, err)
+        return 0
+    }
+    defer file.Close()
 
-	fileInfo, err := file.Stat()
-	if err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error retrieving file info (\033[0;36m%s\033[0m): %s\n", absPath, err)
-		return 0
-	}
+    fileInfo, err := file.Stat()
+    if err != nil {
+        fmt.Printf("\033[31m[FAIL]\033[0m Error retrieving file info (\033[0;36m%s\033[0m): %s\n", absPath, err)
+        return 0
+    }
 
-	return int32(fileInfo.Mode().Perm())
+    return int32(fileInfo.Mode().Perm())
 }
 
 // Append a string to a log file (self explanatory)
@@ -70,7 +70,7 @@ func appendLog(filename string, text string) error {
 }
 
 // Parse exclusions from files
-func loadExclusions(filename string) (map[string]bool, error) {
+func loadExclusions(filename string, signal int) (map[string]bool, error) {
 	exclusions := make(map[string]bool)
 	file, err := os.Open(filename)
 	if err != nil {
@@ -89,7 +89,11 @@ func loadExclusions(filename string) (map[string]bool, error) {
 			fmt.Printf("\033[31m[FAIL]\033[0m Error converting to absolute path: %s\n", err)
 			continue
 		}
-		fmt.Printf("Exclusion loaded: %s\n", absPath)
+        if signal == 0 {
+		    fmt.Printf("\033[33m[INFO]\033[0m Hash exclusion loaded (\033[0;36m%s/%s\033[0m)\n", absPath)
+        } else if signal == 1 {
+            fmt.Printf("\033[33m[INFO]\033[0m Permission exclusion loaded (\033[0;36m%s/%s\033[0m)\n", absPath)
+        }
 		exclusions[absPath] = true
 	}
 	return exclusions, nil
@@ -102,7 +106,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 
 	if ignoreHashFile != "" {
 		var err error
-		ignoreHashes, err = loadExclusions(ignoreHashFile)
+		ignoreHashes, err = loadExclusions(ignoreHashFile, 0)
 		if err != nil {
 			fmt.Printf("\033[31m[FAIL]\033[0m Error loading hash exclusion file: %s\n", err)
 			return
@@ -110,7 +114,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 	}
 	if ignorePermFile != "" {
 		var err error
-		ignorePerms, err = loadExclusions(ignorePermFile)
+		ignorePerms, err = loadExclusions(ignorePermFile, 1)
 		if err != nil {
 			fmt.Printf("\033[31m[FAIL]\033[0m Error loading permission exclusion file: %s\n", err)
 			return
@@ -134,7 +138,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 		return
 	}
 
-	// break --> base file search
+    // break --> base file search
 	filepath.WalkDir(baseAbs, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -155,7 +159,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 		return nil
 	})
 
-	// break --> target file search
+    // break --> target file search
 	filepath.WalkDir(targetAbs, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Printf("\033[31m[FAIL]\033[0m Error accessing path (\033[0;36m%s\033[0m): %s\n", path, err)
@@ -182,7 +186,9 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 					appendLog("conflicts.log", targetAbs+"/"+relativePath+"\n")
 				}
 
-				if !ignorePerms[absPath] && baseFile.permissions != targetPermissions {
+				if ignorePerms[absPath] {
+					fmt.Printf("\033[33m[INFO]\033[0m Skipping permission check for excluded file (\033[0;36m%s\033[0m)\n", absPath)
+				} else if baseFile.permissions != targetPermissions {
 					fmt.Printf("\033[31m[ALERT]\033[0m Permission conflict (\033[0;36m%s/%s\033[0m): (base: \033[0;36m%o\033[0m, target: \033[0;36m%o\033[0m)\n", targetAbs, relativePath, baseFile.permissions, targetPermissions)
 					appendLog("permission_conflicts.log", targetAbs+"/"+relativePath+"\n")
 				} else {
