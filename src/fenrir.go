@@ -167,7 +167,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 			relativePath, _ := filepath.Rel(targetAbs, absPath)
 
 			if ignoreHashes[absPath] {
-				fmt.Printf("\033[33m[INFO]\033[0m Skipping hash check for excluded file: %s\n", absPath)
+				fmt.Printf("\033[33m[INFO]\033[0m Skipping hash check for excluded file (\033[0;36m%s\033[0m)\n", absPath)
 				return nil
 			}
 
@@ -189,7 +189,7 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 					fmt.Printf("\033[32m[OK]\033[0m Permissions matched (\033[0;36m%s/%s\033[0m --> \033[0;36m%s/%s\033[0m)\n", baseAbs, relativePath, targetAbs, relativePath)
 				}
 			} else {
-				fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base: (\033[0;36m%s/%s\033[0m)\n", targetAbs, relativePath)
+				fmt.Printf("\033[31m[ALERT]\033[0m File exists in target but not in base (\033[0;36m%s/%s\033[0m)\n", targetAbs, relativePath)
 				appendLog("target_specific.log", targetAbs+"/"+relativePath+"\n")
 			}
 		}
