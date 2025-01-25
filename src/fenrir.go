@@ -8,13 +8,24 @@ import (
 	"path/filepath"
 )
 
-// SHA-256 checksum verification function for files (self explanatory)
+// SHA-256 checksum verification function for files
 func checksum(filePath string) string {
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		fmt.Printf("\033[31m[FAIL]\033[0m Error converting to absolute path (\033[0;36m%s\033[0m): %s\n", filePath, err)
 		return ""
 	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		fmt.Printf("\033[31m[FAIL]\033[0m Error accessing file info (\033[0;36m%s\033[0m): %s\n", absPath, err)
+		return ""
+	}
+
+	if info.IsDir() {
+		return ""
+	}
+
 	file, err := os.Open(absPath)
 	if err != nil {
 		fmt.Printf("\033[31m[FAIL]\033[0m Error reading file (\033[0;36m%s\033[0m): %s\n", absPath, err)
@@ -24,12 +35,13 @@ func checksum(filePath string) string {
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
-		fmt.Printf("\033[31m[FAIL]\033[0m Error retrieving sha256 hash (\033[0;36m%s\033[0m): %s\n", absPath, err)
+		fmt.Printf("\033[31m[FAIL]\033[0m Error calculating SHA-256 hash (\033[0;36m%s\033[0m): %s\n", absPath, err)
 		return ""
 	}
 
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
+
 
 // Get permissions of a file (self explanatory)
 func get_permissions(filePath string) int32 {
