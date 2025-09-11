@@ -8,6 +8,11 @@ import (
 	"path/filepath"
 )
 
+var (
+	ignoreAllHashes = false
+	ignoreAllPermissions = false
+)
+
 func c(str string, opt int) string {
 	colors := map[int]string{
 		0: "\033[31m",    // RED
@@ -27,6 +32,19 @@ func fail(msg string)    { logStatus("[-]", 0, msg) }
 func alert(msg string)   { logStatus("[!]", 0, msg) }
 func success(msg string) { logStatus("[+]", 1, msg) }
 func info(msg string)    { logStatus("[#]", 2, msg) }
+
+func reset_logging() {
+	logFiles := []string{"conflicts.log", "permission_conflicts.log", "target_specific.log", "base_specific.log"}
+	for _, logFile := range logFiles {
+		err := os.Remove(logFile)
+		if err != nil && !os.IsNotExist(err) {
+			fail(fmt.Sprintf("Error clearing log file %s: %s", logFile, err))
+		} else {
+			success(fmt.Sprintf("Log file cleared: %s", logFile))
+		}
+	}
+	return
+}
 
 func checksum(filePath string) string {
 	absPath, err := filepath.Abs(filePath)
@@ -60,8 +78,6 @@ func checksum(filePath string) string {
 
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
-
-func reset_logs(log_name string) {}
 
 func get_permissions(filePath string) int32 {
 	absPath, err := filepath.Abs(filePath)
@@ -205,20 +221,24 @@ func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
 			targetPermissions := get_permissions(absPath)
 
 			if baseFile, found := baseFiles[relativePath]; found {
-				if baseFile.checksum == targetChecksum {
-					success(fmt.Sprintf("File matched (%s --> %s)", c(baseAbs+"/"+relativePath, 3), c(targetAbs+"/"+relativePath, 3)))
-				} else {
-					alert(fmt.Sprintf("Checksum conflict (%s)", c(targetAbs+"/"+relativePath, 3)))
-					append_log("conflicts.log", targetAbs+"/"+relativePath+"\n")
+				if !ignoreAllHashes {
+					if baseFile.checksum == targetChecksum {
+						success(fmt.Sprintf("File matched (%s -> %s)", c(baseAbs+"/"+relativePath, 3), c(targetAbs+"/"+relativePath, 3)))
+					} else {
+						alert(fmt.Sprintf("Checksum conflict (%s -> %s)", c(baseAbs+"/"+relativePath, 3), c(targetAbs+"/"+relativePath, 3)))
+						append_log("conflicts.log", baseAbs+"/"+relativePath+":"+targetAbs+"/"+relativePath+"\n")
+					}
 				}
-
-				if ignorePerms[absPath] {
-					info(fmt.Sprintf("Skipping permission check for excluded file (%s)", c(absPath, 3)))
-				} else if baseFile.permissions != targetPermissions {
-					alert(fmt.Sprintf("Permission conflict (%s): (base: %s, target: %s)", c(targetAbs+"/"+relativePath, 3), fmt.Sprintf("%o", baseFile.permissions), fmt.Sprintf("%o", targetPermissions)))
-					append_log("permission_conflicts.log", targetAbs+"/"+relativePath+"\n")
-				} else {
-					success(fmt.Sprintf("Permissions matched (%s -> %s)", c(baseAbs+"/"+relativePath, 3), c(targetAbs+"/"+relativePath, 3)))
+				
+				if !ignoreAllPermissions {
+					if ignorePerms[absPath] {
+						info(fmt.Sprintf("Skipping permission check for excluded file (%s)", c(absPath, 3)))
+					} else if baseFile.permissions != targetPermissions {
+						alert(fmt.Sprintf("Permission conflict (%s): (base: %s, target: %s)", c(targetAbs+"/"+relativePath, 3), fmt.Sprintf("%o", baseFile.permissions), fmt.Sprintf("%o", targetPermissions)))
+						append_log("permission_conflicts.log", baseAbs+"/"+relativePath+":"+targetAbs+"/"+relativePath+"\n")
+					} else {
+						success(fmt.Sprintf("Permissions matched (%s -> %s)", c(baseAbs+"/"+relativePath, 3), c(targetAbs+"/"+relativePath, 3)))
+					}
 				}
 			} else {
 				alert(fmt.Sprintf("File exists in target but not in base (%s)", c(targetAbs+"/"+relativePath, 3)))
@@ -242,6 +262,10 @@ func help() {
 	fmt.Printf("\nOptions:\n")
 	fmt.Printf("  -b   Declares base directory (REQUIRES TARGET)\n")
 	fmt.Printf("  -t   Declares target directory (REQUIRES BASE)\n")
+	fmt.Printf("  -nh  Ignore all hash comparison results\n")
+	fmt.Printf("  -np  Ignore all permission comparison results\n")
+	fmt.Printf("  -xh  Exclude a file for hash comparison\n")
+	fmt.Printf("  -xp  Exclude a file for permission comparison\n")
 	fmt.Printf("  -c   Clears all log files\n")
 }
 
@@ -289,6 +313,10 @@ func main() {
 				help()
 				return
 			}
+		case "-nh":
+			ignoreAllHashes = true
+		case "-np":
+			ignoreAllPermissions = true
 		default:
 			fmt.Printf("Unknown option: %s\n", os.Args[i])
 			help()
@@ -297,23 +325,15 @@ func main() {
 	}
 
 	if clearLogs {
-		logFiles := []string{"conflicts.log", "permission_conflicts.log", "target_specific.log", "base_specific.log"}
-		for _, logFile := range logFiles {
-			err := os.Remove(logFile)
-			if err != nil && !os.IsNotExist(err) {
-				fail(fmt.Sprintf("Error clearing log file %s: %s", logFile, err))
-			} else {
-				success(fmt.Sprintf("Log file cleared: %s", logFile))
-			}
-		}
-		return
+		reset_logging()
 	}
 
 	if base == "" || target == "" {
-		fmt.Println("Error: Both base (-b) and target (-t) directories must be specified")
+		fail("Error: Both base (-b) and target (-t) directories must be specified")
 		help()
 		return
 	}
 
+	reset_logging()
 	verify(base, target, ignoreHashFile, ignorePermFile)
 }
