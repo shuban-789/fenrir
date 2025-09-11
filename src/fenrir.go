@@ -144,7 +144,7 @@ func load_exclusions(filename string, signal int) (map[string]bool, error) {
 	return exclusions, nil
 }
 
-func verify(base string, target string, ignoreHashFile, ignorePermFile string) {
+func verify(base string, target string, ignoreHashFile string, ignorePermFile string) {
 	ignoreHashes := make(map[string]bool)
 	ignorePerms := make(map[string]bool)
 
