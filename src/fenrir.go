@@ -9,16 +9,18 @@ import (
 )
 
 var (
+	debug = false
 	ignoreAllHashes = false
 	ignoreAllPermissions = false
 )
 
 func c(str string, opt int) string {
 	colors := map[int]string{
-		0: "\033[31m",    // RED
-		1: "\033[32m",    // GREEN
-		2: "\033[33m",    // YELLOW
-		3: "\033[0;36m",  // CYAN
+		0: "\033[31m",	// RED
+		1: "\033[32m",	// GREEN
+		2: "\033[33m",	// YELLOW
+		3: "\033[36m",	// CYAN
+		4: "\033[90m",	// GRAY
 	}
 	reset := "\033[0m"
 	if color, ok := colors[opt]; ok {
@@ -32,6 +34,7 @@ func fail(msg string)    { logStatus("[-]", 0, msg) }
 func alert(msg string)   { logStatus("[!]", 0, msg) }
 func success(msg string) { logStatus("[+]", 1, msg) }
 func info(msg string)    { logStatus("[#]", 2, msg) }
+func comment(msg string) { logStatus("[/]", 4, msg) }
 
 func reset_logging() {
 	logFiles := []string{"conflicts.log", "permission_conflicts.log", "target_specific.log", "base_specific.log"}
@@ -115,8 +118,9 @@ func append_log(filename string, text string) error {
 	return nil
 }
 
-func load_exclusions(filename string, signal int) (map[string]bool, error) {
+func load_exclusions(filename string, signal int, baseAbs, targetAbs string) (map[string]bool, error) {
 	exclusions := make(map[string]bool)
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -129,41 +133,39 @@ func load_exclusions(filename string, signal int) (map[string]bool, error) {
 		if err != nil {
 			break
 		}
-		absPath, err := filepath.Abs(line)
+
+		absPath, err := filepath.Abs(filepath.Clean(line))
 		if err != nil {
 			fail(fmt.Sprintf("Error converting to absolute path: %s", err))
 			continue
 		}
-		if signal == 0 {
-			info(fmt.Sprintf("Hash exclusion loaded (%s)", c(absPath, 3)))
-		} else if signal == 1 {
-			info(fmt.Sprintf("Permission exclusion loaded (%s)", c(absPath, 3)))
-		}
+
 		exclusions[absPath] = true
+
+		if baseAbs != "" && targetAbs != "" {
+			if rel, err := filepath.Rel(baseAbs, absPath); err == nil {
+				targetVersion, _ := filepath.Abs(filepath.Clean(filepath.Join(targetAbs, rel)))
+				exclusions[targetVersion] = true
+			}
+			if rel, err := filepath.Rel(targetAbs, absPath); err == nil {
+				baseVersion, _ := filepath.Abs(filepath.Clean(filepath.Join(baseAbs, rel)))
+				exclusions[baseVersion] = true
+			}
+		}
+
+		if signal == 0 {
+			comment(fmt.Sprintf("Hash exclusion loaded (%s)", c(absPath, 3)))
+		} else if signal == 1 {
+			comment(fmt.Sprintf("Permission exclusion loaded (%s)", c(absPath, 3)))
+		}
 	}
+
 	return exclusions, nil
 }
 
 func verify(base string, target string, ignoreHashFile string, ignorePermFile string) {
 	ignoreHashes := make(map[string]bool)
 	ignorePerms := make(map[string]bool)
-
-	if ignoreHashFile != "" {
-		var err error
-		ignoreHashes, err = load_exclusions(ignoreHashFile, 0)
-		if err != nil {
-			fail(fmt.Sprintf("Error loading hash exclusion file: %s", err))
-			return
-		}
-	}
-	if ignorePermFile != "" {
-		var err error
-		ignorePerms, err = load_exclusions(ignorePermFile, 1)
-		if err != nil {
-			fail(fmt.Sprintf("Error loading permission exclusion file: %s", err))
-			return
-		}
-	}
 
 	baseFiles := make(map[string]struct {
 		checksum    string
@@ -180,6 +182,24 @@ func verify(base string, target string, ignoreHashFile string, ignorePermFile st
 	if err != nil {
 		fail(fmt.Sprintf("Error converting target path to absolute: %s", err))
 		return
+	}
+
+	if ignoreHashFile != "" {
+		var err error
+		ignoreHashes, err = load_exclusions(ignoreHashFile, 0, baseAbs, targetAbs)
+		if err != nil {
+			fail(fmt.Sprintf("Error loading hash exclusion file: %s", err))
+			return
+		}
+	}
+
+	if ignorePermFile != "" {
+		var err error
+		ignorePerms, err = load_exclusions(ignorePermFile, 1, baseAbs, targetAbs)
+		if err != nil {
+			fail(fmt.Sprintf("Error loading permission exclusion file: %s", err))
+			return
+		}
 	}
 
 	filepath.WalkDir(baseAbs, func(path string, entry os.DirEntry, err error) error {
@@ -209,11 +229,11 @@ func verify(base string, target string, ignoreHashFile string, ignorePermFile st
 		}
 
 		if !entry.IsDir() {
-			absPath, _ := filepath.Abs(path)
+			absPath, _ := filepath.Abs(filepath.Clean(path))
 			relativePath, _ := filepath.Rel(targetAbs, absPath)
 
 			if ignoreHashes[absPath] {
-				info(fmt.Sprintf("Skipping hash check for excluded file (%s)", c(absPath, 3)))
+				comment(fmt.Sprintf("Skipping hash check for excluded file (%s)", c(absPath, 3)))
 				return nil
 			}
 
@@ -232,7 +252,7 @@ func verify(base string, target string, ignoreHashFile string, ignorePermFile st
 				
 				if !ignoreAllPermissions {
 					if ignorePerms[absPath] {
-						info(fmt.Sprintf("Skipping permission check for excluded file (%s)", c(absPath, 3)))
+						comment(fmt.Sprintf("Skipping permission check for excluded file (%s)", c(absPath, 3)))
 					} else if baseFile.permissions != targetPermissions {
 						alert(fmt.Sprintf("Permission conflict (%s): (base: %s, target: %s)", c(targetAbs+"/"+relativePath, 3), fmt.Sprintf("%o", baseFile.permissions), fmt.Sprintf("%o", targetPermissions)))
 						append_log("permission_conflicts.log", baseAbs+"/"+relativePath+":"+targetAbs+"/"+relativePath+"\n")
@@ -249,7 +269,8 @@ func verify(base string, target string, ignoreHashFile string, ignorePermFile st
 	})
 
 	for relativePath := range baseFiles {
-		targetPath := filepath.Join(targetAbs, relativePath)
+		targetPathRaw := filepath.Join(targetAbs, relativePath)
+		targetPath, _ := filepath.Abs(filepath.Clean(targetPathRaw))
 		if _, err := os.Stat(targetPath); os.IsNotExist(err) && !ignoreHashes[targetPath] {
 			alert(fmt.Sprintf("File exists in base but not in target (%s/%s)", c(baseAbs, 3), c(relativePath, 3)))
 			append_log("base_specific.log", baseAbs+"/"+relativePath+"\n")
@@ -264,8 +285,8 @@ func help() {
 	fmt.Printf("  -t   Declares target directory (REQUIRES BASE)\n")
 	fmt.Printf("  -nh  Ignore all hash comparison results\n")
 	fmt.Printf("  -np  Ignore all permission comparison results\n")
-	fmt.Printf("  -xh  Exclude a file for hash comparison\n")
-	fmt.Printf("  -xp  Exclude a file for permission comparison\n")
+	fmt.Printf("  -xh  Load a hash exclusion file for hash comparison\n")
+	fmt.Printf("  -xp  Load a permission exclusion file for permission comparison\n")
 	fmt.Printf("  -c   Clears all log files\n")
 }
 
